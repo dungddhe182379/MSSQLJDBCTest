@@ -2,8 +2,8 @@ name: Deploy to VPS
 
 on:
   push:
-    branches: [ "main" ]   # đổi nếu bạn dùng master/nhánh khác
-  workflow_dispatch:        # cho phép bấm Run workflow thủ công
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -19,7 +19,7 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy (pull latest only)
+      - name: Pull latest only
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -32,3 +32,20 @@ jobs:
             git reset --hard origin/main
             echo "Pulled latest commit:"
             git log -1 --oneline
+
+      - name: Deploy WAR into Tomcat10 and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            WAR_SRC="/opt/MSSQLJDBCTest/app.war"
+            WEBAPPS="/opt/tomcat10/webapps"
+
+            sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
+            sudo cp "$WAR_SRC" "$WEBAPPS/ROOT.war"
+            sudo chown tomcat:tomcat "$WEBAPPS/ROOT.war" 2>/dev/null || \
+            sudo chown tomcat10:tomcat10 "$WEBAPPS/ROOT.war" 2>/dev/null || true
+            sudo systemctl restart tomcat10
