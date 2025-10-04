@@ -16,7 +16,7 @@ public class DBContext {
         try {
             String user = "root"; // Your MySQL username
             String pass = "kaituhaLO123@"; // Your MySQL password
-            String url = "jdbc:mysql://localhost:3306/carpipi"; // MySQL URL format - your schema name
+            String url = "jdbc:mysql://103.82.20.33:3306/carpipi"; // MySQL URL format - your schema name
             Class.forName("com.mysql.cj.jdbc.Driver"); // MySQL driver class
             connection = DriverManager.getConnection(url, user, pass);
         } catch (ClassNotFoundException e) {
