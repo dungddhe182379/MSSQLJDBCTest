@@ -214,8 +214,8 @@ public class AdminDao extends DBContext {
 
                 list.add(account);
             }
+            System.out.println("DEBUG -> Total rows from DB = " + list.size());
         } catch (Exception e) {
-            System.err.println("Lỗi trong phương thức getAll(): " + e.getMessage());
             e.printStackTrace();
         }
         return list;
