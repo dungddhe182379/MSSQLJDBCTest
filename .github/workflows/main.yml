@@ -1,4 +1,4 @@
-name: Deploy WAR to Tomcat
+name: Deploy WAR to Tomcat (ROOT)
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy WAR (take latest from dist)
+      - name: Deploy latest WAR to ROOT
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -20,10 +20,10 @@ jobs:
             set -euo pipefail
 
             PROJECT_DIR="/opt/MSSQLJDBCTest"   # thư mục dự án trên VPS
-            WEBAPPS="/opt/tomcat10/webapps"    # webapps của Tomcat
-            TOMCAT_SVC="tomcat"                # systemd service name
+            WEBAPPS="/opt/tomcat10/webapps"    # thư mục webapps của Tomcat
+            TOMCAT_SVC="tomcat"                # tên systemd service bạn đã tạo
 
-            # 1) Nếu có repo git thì pull code (tùy bạn dùng hay không)
+            # 1) Nếu là repo git thì cập nhật code (tuỳ bạn dùng hay không)
             if [ -d "$PROJECT_DIR/.git" ]; then
               cd "$PROJECT_DIR"
               git fetch --all
@@ -33,25 +33,24 @@ jobs:
             # 2) Lấy WAR mới nhất trong dist/
             SRC="$(ls -t "$PROJECT_DIR"/dist/*.war 2>/dev/null | head -1 || true)"
             if [ -z "${SRC:-}" ] || [ ! -f "$SRC" ]; then
-              echo " Không thấy file WAR trong $PROJECT_DIR/dist"
+              echo "Khong thay file WAR trong $PROJECT_DIR/dist"
               exit 1
             fi
             echo "Using WAR: $SRC"
 
-            # 3a) Nếu muốn giữ nguyên tên gốc (context theo tên WAR)
-            BASENAME="$(basename "$SRC")"
-            sudo rm -rf "$WEBAPPS/${BASENAME%.war}" "$WEBAPPS/$BASENAME" || true
-            sudo cp "$SRC" "$WEBAPPS/$BASENAME"
+            # 3) Deploy vào ROOT (app chạy ở '/')
+            sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
+            # (dọn context cũ nếu có từng deploy tên khác)
+            sudo rm -rf "$WEBAPPS/WebApplication1" "$WEBAPPS/WebApplication1.war" || true
 
-            # 3b) Hoặc nếu muốn chạy ở ROOT (comment/uncomment tuỳ ý)
-            # sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
-            # sudo cp "$SRC" "$WEBAPPS/ROOT.war"
+            sudo cp "$SRC" "$WEBAPPS/ROOT.war"
 
-            # 4) Chỉnh quyền cho user tomcat
-            sudo chown tomcat:tomcat "$WEBAPPS/$BASENAME" 2>/dev/null || true
+            # 4) Quyền file cho user tomcat
             sudo chown tomcat:tomcat "$WEBAPPS/ROOT.war" 2>/dev/null || true
+            # nếu user là tomcat10 thì dùng dòng sau:
+            sudo chown tomcat10:tomcat10 "$WEBAPPS/ROOT.war" 2>/dev/null || true
 
             # 5) Restart Tomcat
             sudo systemctl restart "$TOMCAT_SVC"
 
-            echo " Deployed $BASENAME → $WEBAPPS"
+            echo "Deployed $(basename "$SRC") -> $WEBAPPS/ROOT.war"
