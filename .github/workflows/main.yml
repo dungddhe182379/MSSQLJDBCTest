@@ -35,7 +35,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /var/www/myapp
+            cd /opt/MSSQLJDBCTest/
             git pull || true
             npm i --omit=dev || true
             npm run build || true
