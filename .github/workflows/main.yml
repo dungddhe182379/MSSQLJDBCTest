@@ -44,9 +44,17 @@ jobs:
             sudo rm -rf "$WEBAPPS/${BASENAME%.war}" "$WEBAPPS/$BASENAME" || true
             sudo cp "$SRC" "$WEBAPPS/$BASENAME"
 
-            # 3b) Hoặc nếu muốn chạy ở ROOT (comment/uncomment tuỳ ý)
-            # sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
-            # sudo cp "$SRC" "$WEBAPPS/ROOT.war"
+            # 3b) Deploy vào ROOT, giữ nguyên tên .war
+              BASENAME="$(basename "$SRC")"
+
+            # Xóa toàn bộ ROOT cũ (folder + file .war nếu có)
+            sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
+
+            # Tạo lại ROOT rỗng
+            sudo mkdir -p "$WEBAPPS/ROOT"
+
+            # Copy WAR gốc vào ROOT
+            sudo cp "$SRC" "$WEBAPPS/ROOT/$BASENAME"
 
             # 4) Chỉnh quyền cho user tomcat
             sudo chown tomcat:tomcat "$WEBAPPS/$BASENAME" 2>/dev/null || true
