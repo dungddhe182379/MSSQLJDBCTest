@@ -1,42 +1,19 @@
-name: Deploy to VPS
-on:
-  push:
-    branches: [ "main" ]   # nếu bạn dùng master thì đổi thành "master"
+- name: Pull latest code (no build/restart)
+  uses: appleboy/ssh-action@v1.2.0
+  with:
+    host: ${{ secrets.SSH_HOST }}
+    username: ${{ secrets.SSH_USER }}
+    key: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY }}
+    port: ${{ secrets.SSH_PORT }}
+    script: |
+      set -euo pipefail
+      APP_DIR="/opt/MSSQLJDBCTest"
+      BRANCH="main"            # đổi nếu bạn dùng master/khác
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      cd "$APP_DIR"            # THƯ MỤC NÀY PHẢI TỒN TẠI & ĐÃ CLONE TRƯỚC
+      git fetch --all
+      git reset --hard "origin/$BRANCH"
+      git submodule update --init --recursive || true
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Test SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            whoami && hostname && pwd
-
-      - name: Deploy (pull/build/restart)
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            cd /opt/MSSQLJDBCTest/
-            git pull || true
-            npm i --omit=dev || true
-            npm run build || true
-            pm2 reload myapp || systemctl restart myapp || true
+      echo "Pulled latest commit:"
+      git log -1 --oneline
