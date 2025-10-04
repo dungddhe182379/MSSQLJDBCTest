@@ -178,7 +178,7 @@ public class AdminDao extends DBContext {
     }
 
     public List<Account> getAll() {
-        String sql = "SELECT * FROM Account";
+        String sql = "SELECT * FROM carpipi.`account`";
         List<Account> list = new ArrayList<>();
         try {
             PreparedStatement st = connection.prepareStatement(sql);
