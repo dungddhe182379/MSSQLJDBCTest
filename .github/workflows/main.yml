@@ -44,12 +44,16 @@ jobs:
             # sudo cp "$SRC" "$WEBAPPS/$BASENAME"
 
             # 3b) Deploy vào ROOT, GIỮ NGUYÊN tên .war
-            # - Xoá sạch ROOT (folder + ROOT.war nếu có)
+            # 3b) Deploy vào ROOT, GIỮ NGUYÊN tên .war
+            # - Xoá sạch ROOT (folder + loại luôn ROOT.war nếu lỡ còn)
             sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
+            
             # - Tạo lại thư mục ROOT
             sudo mkdir -p "$WEBAPPS/ROOT"
+            
             # - Copy .war gốc vào ROOT/
             sudo cp "$SRC" "$WEBAPPS/ROOT/$BASENAME"
+            
             # - Giải nén WAR vào ROOT/
             cd "$WEBAPPS/ROOT"
             if command -v jar >/dev/null 2>&1; then
@@ -57,8 +61,11 @@ jobs:
             else
               sudo unzip -o "$BASENAME"
             fi
-            # (tuỳ chọn) giữ lại file .war trong ROOT để tra cứu; muốn gọn thì xoá:
+            # (tuỳ chọn) muốn gọn thì xoá file .war vừa copy:
             # sudo rm -f "$WEBAPPS/ROOT/$BASENAME"
+
+# (tuỳ chọn) muốn gọn thì xoá file .war vừa copy:
+# sudo rm -f "$WEBAPPS/ROOT/$BASENAME"
 
             # 4) Chỉnh quyền cho user tomcat (đệ quy cho ROOT)
             sudo chown -R tomcat:tomcat "$WEBAPPS/ROOT" || true
