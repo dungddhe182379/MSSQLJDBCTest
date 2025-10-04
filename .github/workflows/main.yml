@@ -1,15 +1,38 @@
-name: Deploy to VPS
+name: Deploy Java WAR (per project folder)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]          # đổi nếu bạn deploy nhánh khác
   workflow_dispatch:
+    inputs:
+      PROJECT_NAME:
+        description: "Tên dự án (VD: MSSQLJDBCTest)"
+        required: true
+      CONTEXT_NAME:
+        description: "Tên context Tomcat (rỗng = ROOT /)"
+        required: false
+        default: ""
+      WEBAPPS:
+        description: "Đường dẫn Tomcat webapps"
+        required: false
+        default: "/opt/tomcat10/webapps"
+      TOMCAT_SERVICE:
+        description: "Tên systemd service Tomcat"
+        required: false
+        default: "tomcat10"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_NAME: ${{ github.event.inputs.PROJECT_NAME }}
+      CONTEXT_NAME: ${{ github.event.inputs.CONTEXT_NAME }}
+      WEBAPPS: ${{ github.event.inputs.WEBAPPS }}
+      TOMCAT_SERVICE: ${{ github.event.inputs.TOMCAT_SERVICE }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Setup SSH
         run: |
@@ -19,7 +42,7 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Pull latest only
+      - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -27,25 +50,51 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /opt/MSSQLJDBCTest
-            git fetch --all
-            git reset --hard origin/main
-            echo "Pulled latest commit:"
-            git log -1 --oneline
+            set -e
+            PROJECT="${{ env.PROJECT_NAME }}"
+            WEBAPPS="${{ env.WEBAPPS }}"
+            CONTEXT="${{ env.CONTEXT_NAME }}"
+            TOMCAT_SVC="${{ env.TOMCAT_SERVICE }}"
+            REPO="git@github.com:${GITHUB_REPOSITORY}.git"
 
-      - name: Deploy WAR into Tomcat10 and restart
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            WAR_SRC="/opt/MSSQLJDBCTest/app.war"
-            WEBAPPS="/opt/tomcat10/webapps"
+            echo "➡️ Deploying $PROJECT from $REPO"
 
-            sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
-            sudo cp "$WAR_SRC" "$WEBAPPS/ROOT.war"
-            sudo chown tomcat:tomcat "$WEBAPPS/ROOT.war" 2>/dev/null || \
-            sudo chown tomcat10:tomcat10 "$WEBAPPS/ROOT.war" 2>/dev/null || true
-            sudo systemctl restart tomcat10
+            # 1. Clone nếu chưa có, pull nếu có
+            if [ ! -d "/opt/$PROJECT/.git" ]; then
+              echo "📂 Repo chưa có, cloning..."
+              sudo mkdir -p "/opt/$PROJECT"
+              sudo chown -R $USER:$USER "/opt/$PROJECT"
+              git clone "$REPO" "/opt/$PROJECT"
+            else
+              echo "🔄 Repo đã có, pulling latest..."
+              cd "/opt/$PROJECT"
+              git fetch --all
+              git reset --hard origin/main
+            fi
+
+            cd "/opt/$PROJECT"
+
+            # 2. Kiểm tra WAR trong dist/
+            WAR_SRC="$(ls -t dist/*.war 2>/dev/null | head -1 || true)"
+            if [ -z "$WAR_SRC" ]; then
+              echo "❌ Không tìm thấy dist/*.war trong /opt/$PROJECT"
+              exit 1
+            fi
+
+            # 3. Copy vào Tomcat
+            if [ -z "$CONTEXT" ]; then
+              sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
+              sudo cp "$WAR_SRC" "$WEBAPPS/ROOT.war"
+              TARGET="$WEBAPPS/ROOT.war"
+            else
+              sudo rm -rf "$WEBAPPS/$CONTEXT" "$WEBAPPS/${CONTEXT}.war" || true
+              sudo cp "$WAR_SRC" "$WEBAPPS/${CONTEXT}.war"
+              TARGET="$WEBAPPS/${CONTEXT}.war"
+            fi
+
+            sudo chown tomcat:tomcat "$TARGET" 2>/dev/null || true
+            sudo chown tomcat10:tomcat10 "$TARGET" 2>/dev/null || true
+
+            sudo systemctl restart "$TOMCAT_SVC"
+
+            echo "✅ Deployed $(basename "$WAR_SRC") → $TARGET"
