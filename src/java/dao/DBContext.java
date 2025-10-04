@@ -28,6 +28,8 @@ public class DBContext {
     public Connection getConnection() {
         return connection;
     }
+    
+    
     // Method to close the connection if needed
     public void closeConnection() {
         if (connection != null) {
