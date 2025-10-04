@@ -1,4 +1,3 @@
-
 name: Deploy WAR to Tomcat
 
 on:
@@ -37,30 +36,36 @@ jobs:
               echo " Không thấy file WAR trong $PROJECT_DIR/dist"
               exit 1
             fi
+            BASENAME="$(basename "$SRC")"
             echo "Using WAR: $SRC"
 
-            # 3a) Nếu muốn giữ nguyên tên gốc (context theo tên WAR)
-            BASENAME="$(basename "$SRC")"
-            sudo rm -rf "$WEBAPPS/${BASENAME%.war}" "$WEBAPPS/$BASENAME" || true
-            sudo cp "$SRC" "$WEBAPPS/$BASENAME"
+            # 3a) (TẮT) Deploy theo tên WAR -> COMMENT đi để không tạo context con
+            # sudo rm -rf "$WEBAPPS/${BASENAME%.war}" "$WEBAPPS/$BASENAME" || true
+            # sudo cp "$SRC" "$WEBAPPS/$BASENAME"
 
-            # 3b) Deploy vào ROOT, giữ nguyên tên .war
-              BASENAME="$(basename "$SRC")"
-
-            # Xóa toàn bộ ROOT cũ (folder + file .war nếu có)
+            # 3b) Deploy vào ROOT, GIỮ NGUYÊN tên .war
+            # - Xoá sạch ROOT (folder + ROOT.war nếu có)
             sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
-
-            # Tạo lại ROOT rỗng
+            # - Tạo lại thư mục ROOT
             sudo mkdir -p "$WEBAPPS/ROOT"
-
-            # Copy WAR gốc vào ROOT
+            # - Copy .war gốc vào ROOT/
             sudo cp "$SRC" "$WEBAPPS/ROOT/$BASENAME"
+            # - Giải nén WAR vào ROOT/
+            cd "$WEBAPPS/ROOT"
+            if command -v jar >/dev/null 2>&1; then
+              sudo jar -xf "$BASENAME"
+            else
+              sudo unzip -o "$BASENAME"
+            fi
+            # (tuỳ chọn) giữ lại file .war trong ROOT để tra cứu; muốn gọn thì xoá:
+            # sudo rm -f "$WEBAPPS/ROOT/$BASENAME"
 
-            # 4) Chỉnh quyền cho user tomcat
-            sudo chown tomcat:tomcat "$WEBAPPS/$BASENAME" 2>/dev/null || true
-            sudo chown tomcat:tomcat "$WEBAPPS/ROOT.war" 2>/dev/null || true
+            # 4) Chỉnh quyền cho user tomcat (đệ quy cho ROOT)
+            sudo chown -R tomcat:tomcat "$WEBAPPS/ROOT" || true
+            # nếu bạn còn giữ ROOT.war hoặc file WAR gốc ở webapps thì chown thêm:
+            # sudo chown tomcat:tomcat "$WEBAPPS/$BASENAME" "$WEBAPPS/ROOT.war" 2>/dev/null || true
 
             # 5) Restart Tomcat
             sudo systemctl restart "$TOMCAT_SVC"
 
-            echo " Deployed $BASENAME → $WEBAPPS"
+            echo "Deployed $BASENAME vào ROOT (/) tại $WEBAPPS/ROOT"
