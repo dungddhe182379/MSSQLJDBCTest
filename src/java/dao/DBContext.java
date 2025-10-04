@@ -14,9 +14,9 @@ public class DBContext {
     protected Connection connection;
     public DBContext() {
         try {
-            String user = "root"; // Your MySQL username
-            String pass = "kaituhaLO123@"; // Your MySQL password
-            String url = "jdbc:mysql://103.82.20.33:3306/carpipi"; // MySQL URL format - your schema name
+            String user = "webuser"; // Your MySQL username
+            String pass = "StrongPass123!"; // Your MySQL password
+            String url = "jdbc:mysql://localhost:3306/carpipi"; // MySQL URL format - your schema name
             Class.forName("com.mysql.cj.jdbc.Driver"); // MySQL driver class
             connection = DriverManager.getConnection(url, user, pass);
         } catch (ClassNotFoundException e) {
@@ -28,8 +28,6 @@ public class DBContext {
     public Connection getConnection() {
         return connection;
     }
-    
-    
     // Method to close the connection if needed
     public void closeConnection() {
         if (connection != null) {
