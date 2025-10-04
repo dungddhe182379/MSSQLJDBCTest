@@ -2,17 +2,14 @@ name: Deploy WAR to Tomcat
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch: {}   # object rỗng (đúng kiểu)
+    branches: [ "main" ]          # đổi nhánh nếu cần
+  workflow_dispatch: {}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy WAR (copy like your manual steps)
+      - name: Deploy WAR (take latest from dist)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -22,42 +19,39 @@ jobs:
           script: |
             set -euo pipefail
 
-            PROJECT_DIR="/opt/MSSQLJDBCTest"
-            WEBAPPS="/opt/tomcat10/webapps"
-            TOMCAT_SVC="tomcat"                # đổi đúng tên service bạn tạo
-            WAR_NAME="WebApplication1.war"     # hoặc để trống để lấy war mới nhất
+            PROJECT_DIR="/opt/MSSQLJDBCTest"   # thư mục dự án trên VPS
+            WEBAPPS="/opt/tomcat10/webapps"    # webapps của Tomcat
+            TOMCAT_SVC="tomcat"                # systemd service name
 
-            # 1) Pull code nếu có repo ở server
+            # 1) Nếu có repo git thì pull code (tùy bạn dùng hay không)
             if [ -d "$PROJECT_DIR/.git" ]; then
               cd "$PROJECT_DIR"
               git fetch --all
               git reset --hard origin/main
             fi
 
-            # 2) Chọn WAR
-            if [ -n "$WAR_NAME" ] && [ -f "$PROJECT_DIR/dist/$WAR_NAME" ]; then
-              SRC="$PROJECT_DIR/dist/$WAR_NAME"
-            else
-              SRC="$(ls -t "$PROJECT_DIR"/dist/*.war 2>/dev/null | head -1 || true)"
-            fi
+            # 2) Lấy WAR mới nhất trong dist/
+            SRC="$(ls -t "$PROJECT_DIR"/dist/*.war 2>/dev/null | head -1 || true)"
             if [ -z "${SRC:-}" ] || [ ! -f "$SRC" ]; then
-              echo "Khong thay file WAR trong $PROJECT_DIR/dist"; exit 1
+              echo " Không thấy file WAR trong $PROJECT_DIR/dist"
+              exit 1
             fi
             echo "Using WAR: $SRC"
 
-            # 3) Copy vào webapps (giữ context /WebApplication1)
-            sudo rm -rf "$WEBAPPS/WebApplication1" "$WEBAPPS/WebApplication1.war" || true
-            sudo cp "$SRC" "$WEBAPPS/WebApplication1.war"
+            # 3a) Nếu muốn giữ nguyên tên gốc (context theo tên WAR)
+            BASENAME="$(basename "$SRC")"
+            sudo rm -rf "$WEBAPPS/${BASENAME%.war}" "$WEBAPPS/$BASENAME" || true
+            sudo cp "$SRC" "$WEBAPPS/$BASENAME"
 
-            # Nếu muốn chạy ở '/' thì dùng ROOT.war:
+            # 3b) Hoặc nếu muốn chạy ở ROOT (comment/uncomment tuỳ ý)
             # sudo rm -rf "$WEBAPPS/ROOT" "$WEBAPPS/ROOT.war" || true
             # sudo cp "$SRC" "$WEBAPPS/ROOT.war"
 
-            # 4) Quyền file cho user tomcat
-            sudo chown tomcat:tomcat "$WEBAPPS/WebApplication1.war" 2>/dev/null || true
+            # 4) Chỉnh quyền cho user tomcat
+            sudo chown tomcat:tomcat "$WEBAPPS/$BASENAME" 2>/dev/null || true
             sudo chown tomcat:tomcat "$WEBAPPS/ROOT.war" 2>/dev/null || true
 
-            # 5) Restart Tomcat (systemd)
+            # 5) Restart Tomcat
             sudo systemctl restart "$TOMCAT_SVC"
 
-            echo "Deployed $(basename "$SRC") OK"
+            echo " Deployed $BASENAME → $WEBAPPS"
